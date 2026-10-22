@@ -1,1 +1,4 @@
 *.pdf
+
+TP1/.cache/
+__pycache__/
