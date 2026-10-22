@@ -150,3 +150,73 @@ def get_filtered_data(cities=None, start=START, end=END, q=Q,
     if return_extra:
         return filtered["bookings"], filtered["parkings"], {"raw": raw, "zones": zones}
     return filtered["bookings"], filtered["parkings"]
+
+
+# ----------------------------------------------------------------------------
+# Vérification de la complétude des données
+# ----------------------------------------------------------------------------
+def check_data(data, start=START, end=END, low_ratio=0.3, verbose=True):
+    """
+    Vérifie que les données couvrent bien toute la période [start, end[.
+
+    data : le dict {ville: DataFrame} (bookings ou parkings, brut ou filtré)
+           ou un dict {"bookings": {...}, "parkings": {...}} (ex. extra["raw"]).
+    low_ratio : un jour est signalé "faible" si son nb de lignes < low_ratio x médiane.
+
+    Pour chaque ville, contrôle :
+      - première / dernière date (UTC) vs bornes attendues
+      - nb de jours couverts vs nb de jours attendus, liste des jours manquants
+      - jours à activité anormalement faible (trou partiel de collecte)
+      - timestamps hors période, valeurs nulles, durées <= 0, doublons
+    Retourne un DataFrame récapitulatif (colonne "ok" = tout est bon).
+    """
+    # accepte {"bookings": {...}, "parkings": {...}} ou directement {ville: df}
+    if data and all(isinstance(v, dict) for v in data.values()):
+        items = [(f"{k}/{c}", df) for k, d in data.items() for c, df in d.items()]
+    else:
+        items = list(data.items())
+
+    exp_days = pd.date_range(pd.Timestamp(start, unit="s"),
+                             pd.Timestamp(end, unit="s"), freq="D", inclusive="left")
+    rows = []
+    for name, df in items:
+        if len(df) == 0:
+            rows.append({"jeu": name, "lignes": 0, "ok": False})
+            continue
+        ts = pd.to_datetime(df["init_time"], unit="s")
+        per_day = ts.dt.floor("D").value_counts().reindex(exp_days, fill_value=0)
+        missing = [d.strftime("%Y-%m-%d") for d in per_day.index[per_day == 0]]
+        med = per_day[per_day > 0].median()
+        low = [d.strftime("%Y-%m-%d") for d in per_day.index[(per_day > 0) & (per_day < low_ratio * med)]]
+        out = int(((df["init_time"] < start) | (df["init_time"] >= end)).sum())
+        nulls = int(df[["init_time", "duration"]].isna().sum().sum())
+        neg = int((df["duration"] <= 0).sum())
+        dup = int(df.duplicated(subset=["init_time", "duration"]).sum())
+
+        r = {
+            "jeu": name,
+            "lignes": len(df),
+            "première date": ts.min().strftime("%Y-%m-%d %H:%M"),
+            "dernière date": ts.max().strftime("%Y-%m-%d %H:%M"),
+            "jours couverts": f"{len(exp_days) - len(missing)}/{len(exp_days)}",
+            "jours manquants": len(missing),
+            "jours faibles": len(low),
+            "hors période": out,
+            "nulls": nulls,
+            "durée <= 0": neg,
+            "doublons": dup,
+            "ok": not (missing or low or out or nulls),
+        }
+        rows.append(r)
+        if verbose and (missing or low):
+            if missing:
+                print(f"[{name}] jours SANS données : {missing[:15]}{' ...' if len(missing) > 15 else ''}")
+            if low:
+                print(f"[{name}] jours à activité très faible (< {low_ratio:.0%} de la médiane) : "
+                      f"{low[:15]}{' ...' if len(low) > 15 else ''}")
+
+    summary = pd.DataFrame(rows).set_index("jeu")
+    if verbose:
+        print(f"Période attendue : {exp_days[0]:%Y-%m-%d} -> {exp_days[-1]:%Y-%m-%d} ({len(exp_days)} jours, UTC)")
+        print("TOUT EST OK" if summary["ok"].all() else "ATTENTION : voir les lignes avec ok=False")
+    return summary
