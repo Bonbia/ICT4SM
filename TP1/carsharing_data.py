@@ -60,12 +60,18 @@ def load_wtime(coll, city, start=START, end=END, db=None):
         {"$project": {
             "_id": 0,
             "init_time": 1,
+            "final_time":1,
             "duration": {"$subtract": ["$final_time", "$init_time"]},
             "day": {"$dateToString": {"date": "$init_date", "format": "%Y-%m-%d"}},
             "week": {"$isoWeek": "$init_date"},
             "iso_year": {"$isoWeekYear": "$init_date"},
             "dow": {"$isoDayOfWeek": "$init_date"},
             "hour": {"$hour": "$init_date"},
+            "vendor": 1,
+            "init_address": 1,
+            "final_address": 1,
+            "origin_destination": 1
+   
         }},
     ]
     df = pd.DataFrame(db[coll].aggregate(pipe, allowDiskUse=True))
