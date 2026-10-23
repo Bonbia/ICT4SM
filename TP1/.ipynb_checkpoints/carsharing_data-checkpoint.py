@@ -56,7 +56,7 @@ def load_wtime(coll, city, start=START, end=END, db=None):
     (day, week, iso_year, dow, hour) ; duration en secondes, duration_min en minutes."""
     db = db if db is not None else get_db()
     pipe = [
-        {"$match": {"city": city, "init_time": {"$gte": start, "$lt": end}}},
+        {"$match": {"city": city, "init_time": {"$gte": start, "$lt": end}},
         {"$project": {
             "_id": 0,
             "init_time": 1,
@@ -70,7 +70,8 @@ def load_wtime(coll, city, start=START, end=END, db=None):
             "vendor": 1,
             "init_address": 1,
             "final_address": 1,
-            "origin_destination": 1
+            "origin_destination": 1,
+            "public_transport":1
    
         }},
     ]
