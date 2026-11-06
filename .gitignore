@@ -2,3 +2,7 @@
 
 TP1/.cache/
 __pycache__/
+
+*.zip
+TP2/IMQ/*
+TP2/Unipoldata/*
