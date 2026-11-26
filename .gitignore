@@ -3,5 +3,6 @@
 TP1/.cache/
 __pycache__/
 
+TP2/.ipynb_checkpoints/*
 *.zip
 TP2/data/*
